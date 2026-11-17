@@ -1,0 +1,152 @@
+# Builds the headless arm64 TuxBlox natively on GitHub's arm64 runners and publishes the runtime image
+# from deploy/headless to GHCR, which the staging stack pulls.
+#
+# Two jobs because the WebKitGTK bundle and the rest each take hours on a fresh runner. Every build
+# step has its own time limit below the job's, so the ccache save after it still runs when a build is
+# cut off; re-running then picks up from the cache and gets further each time.
+name: arm64 headless
+
+on:
+  push:
+    branches: [arm64-headless]
+    paths-ignore: ['**.md', 'assets/**', 'packaging/**']
+  workflow_dispatch:
+
+concurrency:
+  group: arm64-headless-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  ARCH: arm64
+  # The VERSION build counter is a release concern; CI never commits it back.
+  TUXBLOX_DONT_INCREMENT_BUILD: '1'
+
+jobs:
+  webkitgtk:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make room on the runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          df -h /
+
+      - name: Install podman
+        run: command -v podman || { sudo apt-get update && sudo apt-get install -y podman; }
+
+      - name: Restore the finished bundle
+        id: bundle
+        uses: actions/cache/restore@v4
+        with:
+          path: compat/webkitgtk/prebuilt
+          key: webkitgtk-arm64-${{ hashFiles('compat/webkitgtk/bundle/**', 'compat/webkitgtk/src/**') }}
+
+      # build.sh keeps its ccache in a podman volume; it is exported to a tarball between runs.
+      - name: Restore ccache
+        if: steps.bundle.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: workspace/webkitgtk-ccache.tar
+          key: webkitgtk-ccache-arm64-${{ github.run_id }}
+          restore-keys: webkitgtk-ccache-arm64-
+
+      - name: Build
+        if: steps.bundle.outputs.cache-hit != 'true'
+        timeout-minutes: 320
+        run: |
+          if [ -f workspace/webkitgtk-ccache.tar ]; then
+              podman volume create webkitgtk-ccache-arm64
+              podman volume import webkitgtk-ccache-arm64 workspace/webkitgtk-ccache.tar
+          fi
+          make ARCH=arm64 webkitgtk
+
+      - name: Export ccache
+        if: always() && steps.bundle.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p workspace
+          podman volume export webkitgtk-ccache-arm64 -o workspace/webkitgtk-ccache.tar || true
+
+      - name: Save ccache
+        if: always() && steps.bundle.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: workspace/webkitgtk-ccache.tar
+          key: webkitgtk-ccache-arm64-${{ github.run_id }}
+
+      - name: Save the finished bundle
+        if: steps.bundle.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: compat/webkitgtk/prebuilt
+          key: ${{ steps.bundle.outputs.cache-primary-key }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webkitgtk-arm64
+          path: compat/webkitgtk/prebuilt/
+          retention-days: 7
+
+  components:
+    needs: webkitgtk
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make room on the runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          df -h /
+
+      - name: Install podman, and rsync and file for build-image.sh
+        run: sudo apt-get update && sudo apt-get install -y podman rsync file
+
+      - name: Check out the shared libraries
+        # compat/'s submodules (FEX included) are checked out by the build itself.
+        run: git submodule update --init shared
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: webkitgtk-arm64
+          path: compat/webkitgtk/prebuilt/
+
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.ccache
+          key: ccache-arm64-${{ github.run_id }}
+          restore-keys: ccache-arm64-
+
+      - name: Build
+        timeout-minutes: 320
+        run: |
+          # Fresh from the artifact, so make does not try to rebuild it from source.
+          touch compat/webkitgtk/prebuilt/*.tar.xz
+          make ARCH=arm64 JOBS="$(nproc)" components
+
+      - name: Save ccache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.ccache
+          key: ccache-arm64-${{ github.run_id }}
+
+      - name: Build the runtime image
+        run: deploy/headless/build-image.sh
+
+      - name: Publish to GHCR
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tuxblox-headless"
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          podman tag localhost/tuxblox-headless:arm64 "$image:arm64" "$image:${GITHUB_SHA::12}"
+          podman push "$image:arm64"
+          podman push "$image:${GITHUB_SHA::12}"

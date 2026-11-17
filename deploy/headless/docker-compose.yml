@@ -1,0 +1,28 @@
+services:
+  tuxblox-headless:
+    # Published by .github/workflows/arm64-headless.yml. For a local build, use
+    # localhost/tuxblox-headless:arm64 after deploy/headless/build-image.sh <host>.
+    image: ghcr.io/rumor1337/tuxblox-headless:arm64
+    container_name: tuxblox-headless
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      # 1 while signing in to Studio for the first time, then 0.
+      VNC: "1"
+    ports:
+      # Loopback only, reached with: ssh -L 5900:127.0.0.1:5900 <host>
+      - "127.0.0.1:5900:5900"
+    shm_size: 1gb
+    volumes:
+      # Roblox's own downloads and the Wine prefix with the Studio sign-in.
+      - roblox:/opt/tuxblox/roblox
+      - runtime:/opt/tuxblox/runtime
+      - home:/home/tuxblox
+    # The MCP gateway is started per client over stdio:
+    #   ssh <host> sudo docker exec -i tuxblox-headless /opt/tuxblox/studio-mcp
+
+volumes:
+  roblox:
+  runtime:
+  home:

@@ -1,0 +1,25 @@
+# Runtime image for the headless arm64 build. Built from a context that deploy/headless/build-image.sh
+# assembles out of build/native (`make ARCH=arm64 components` first), so it carries no build tools.
+#
+# Debian 13 because the arm64 build needs glibc 2.41; the host it runs on can be anything with Docker.
+FROM docker.io/library/debian:13-slim
+
+# Xvfb is the display Wine draws into, lavapipe (mesa-vulkan-drivers) the Vulkan device DXVK renders
+# with when there is no GPU, and x11vnc is only for signing in to Studio the first time. The rest is
+# what the launcher, Wine and the layer's GStreamer load from the system rather than bundle.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates procps zstd \
+        xvfb xauth x11vnc libvulkan1 mesa-vulkan-drivers \
+        libcurl4t64 libarchive13t64 \
+        libx11-6 libxext6 libxrandr2 libxi6 libxinerama1 libxcomposite1 libxcursor1 libxcb-render0 \
+        libxkbcommon0 libwayland-client0 libfreetype6 libfontconfig1 fonts-liberation \
+        libglib2.0-0t64 libgl1 libegl1 libdbus-1-3 libasound2t64 libpulse0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# TuxBlox refuses to run as root.
+RUN useradd -m -u 1000 tuxblox
+COPY --chown=tuxblox:tuxblox tuxblox/ /opt/tuxblox/
+COPY entrypoint.sh /usr/local/bin/tuxblox-headless
+USER tuxblox
+ENV HOME=/home/tuxblox DISPLAY=:99
+ENTRYPOINT ["/usr/local/bin/tuxblox-headless"]
