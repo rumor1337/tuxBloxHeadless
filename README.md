@@ -1,3 +1,77 @@
+# tuxBloxHeadless
+
+A fork of [TuxBlox](https://github.com/cherrypath0/tuxblox) that adds an **ARM64 (aarch64) build** for running Roblox Studio **headless on a VPS**, with the Studio MCP gateway (`studio-mcp`) built as a native aarch64 binary.
+
+> [!IMPORTANT]
+> **Untested end to end.** These changes were written on an x86_64 machine without podman, so neither the arm64 build nor Studio under FEX on a real ARM server has been run yet. The default x86_64 build expands to the same commands as upstream, and the touched C++ compiles. Please report what happens on real hardware.
+
+### What this fork changes
+
+* `make ARCH=arm64` builds every component for aarch64: the compatibility layer (Wine `aarch64` + `arm64ec`, with [FEX](https://github.com/FEX-Emu/FEX) running the x86_64 Windows code), the launcher, the installer, `studio-mcp`, the shared libraries, the interface stack and the WebKitGTK runtime. AppImage and Flatpak stay x86_64 only.
+* `Containerfile.arm64`: the arm64 build image, based on Valve's arm64 steamrt4 SDK, which the upstream Proton build already uses for `TARGET_ARCH=arm64`.
+* The bundled gnutls that ntdll uses to check the Roblox client's signature is now built for aarch64 too, so the integrity check runs on ARM the same as on x86_64. (Without it, ntdll refuses to start the client.)
+* The launcher's updater picks the release entry for the machine's own processor. Before, it always read the `x86_64` entry, even on arm64.
+* `shared/flags/DefaultFlags-arm64.json`: arm64 flag defaults, copied from x86_64 for now.
+
+Roblox's own binaries (Studio, `StudioMCP.exe`) are still x86_64 Windows programs. They run unmodified through Wine and FEX, and nothing in Roblox is patched.
+
+### Requirements (arm64 VPS)
+
+* An ARMv8.2+ server (e.g. Ampere Altra, AWS Graviton 2+, Oracle A1), 4+ cores, 8 GB RAM recommended
+* **glibc 2.41 or newer** (Debian 13, Ubuntu 25.04 or newer), because the arm64 SDK is Debian 13
+* Linux 6.7 or newer
+* `libvulkan1` and Mesa's software Vulkan driver (lavapipe, `mesa-vulkan-drivers`) if there is no GPU
+* A display server even without a screen: `Xvfb` (or a headless Wayland compositor such as `weston --backend=headless` or `cage`)
+
+### Build
+
+On an arm64 machine (native is far faster than qemu-user), with podman installed:
+
+```bash
+git clone https://github.com/rumor1337/tuxBloxHeadless && cd tuxBloxHeadless
+make ARCH=arm64 components
+```
+
+The build checks out the submodules it needs, FEX included.
+
+Keep one checkout per architecture: `build/` and the in-tree build directories are not split by `ARCH`.
+
+### Run headless
+
+```bash
+sudo apt install xvfb libvulkan1 mesa-vulkan-drivers
+Xvfb :99 -screen 0 1920x1080x24 &
+export DISPLAY=:99
+~/.tuxblox/TuxBloxLauncher --launch-studio
+```
+
+Signing in to Studio opens a window, so the first time, connect over VNC to do it (e.g. `x11vnc -display :99`).
+
+### Studio MCP
+
+`studio-mcp` speaks MCP over stdio, so point your MCP client at it. Over SSH from another machine:
+
+```json
+{
+  "mcpServers": {
+    "roblox-studio": {
+      "command": "ssh",
+      "args": ["user@your-vps", "DISPLAY=:99", "~/.tuxblox/studio-mcp"]
+    }
+  }
+}
+```
+
+On the VPS itself, use `"command": "/home/<user>/.tuxblox/studio-mcp"` with no arguments.
+
+### License
+
+Same as upstream: GPLv3 outside `compat/`, LGPLv2.1 for `compat/` (except `compat/tuxblox/` and `compat/webkitgtk/bundle/`, which are GPLv3). See `LICENSE` and `third_party_licenses/`. Not affiliated with Roblox or the TuxBlox project.
+
+---
+
+*Upstream README follows.*
+
 > [!WARNING]
 > **Roblox Player support is still in progress!** TuxBlox currently supports Roblox Studio. Updates will be posted on our [Discord](https://tuxblox.net/discord).
 
@@ -48,7 +122,7 @@ Known issues are listed in the [documentation](https://tuxblox.net/docs).
 
 ### Hardware
 
-* **Processor:** x86-64 with SSE3 support or newer (ARM64 is planned)
+* **Processor:** x86-64 with SSE3 support or newer, or ARM64 (ARMv8.2+, headless build, see above)
 * **Memory:** 4 GB of RAM
 * **Disk space:** 4 GB free
 * **Graphics:** a GPU with working Vulkan drivers
