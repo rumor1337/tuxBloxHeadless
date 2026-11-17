@@ -486,6 +486,7 @@ WINE_i386_DEPENDS = vkd3d
 ## gnutls is here for its headers only. ntdll loads it at runtime instead of
 ## linking it, so that nothing new is mapped into every process.
 WINE_x86_64_DEPENDS = vkd3d gnutls
+WINE_aarch64_DEPENDS = gnutls
 
 WINE_i386_LIBDIR = $(WINE_i386_DST)/lib
 WINE_x86_64_LIBDIR = $(WINE_x86_64_DST)/lib
@@ -536,6 +537,9 @@ $(OBJ)/.wine-aarch64-post-build:
 ifeq ($(findstring x86_64,$(unix_ARCHS)),)
 	mkdir -p $(DST_DIR)/share
 	cp -a $(WINE_aarch64_DST)/share/wine $(DST_DIR)/share
+	@# Same roots as the x86_64 layer: ntdll's signature check refuses to start the client without them.
+	mkdir -p $(DST_DIR)/share/tuxblox
+	cp -a $(SRCDIR)/tuxblox/data/roots.pem $(DST_DIR)/share/tuxblox/roots.pem
 endif
 	touch $@
 
@@ -681,8 +685,9 @@ $(OBJ)/.vkd3d-i386-post-build: $(OBJ)/.wine-$(HOST_ARCH)-tools
 ## relied on for that: Wine dlopens gnutls and carries on without it, so a check
 ## built on the host's copy would simply not run where there is none.
 ##
-## x86_64 only. The only image verified is the Roblox client, which is a 64-bit
-## PE, so the 32-bit ntdll never sees one as its main image.
+## 64-bit Unix side only (x86_64, or aarch64 for TARGET_ARCH=arm64). The only
+## image verified is the Roblox client, which is a 64-bit PE, so the 32-bit ntdll
+## never sees one as its main image.
 ##
 ## Far smaller than the webview bundle's gnutls, which carries eleven libraries
 ## because WebKit wants the compression and p11-kit anyway. Without those this is
@@ -697,23 +702,31 @@ CRYPTO_SRCS = $(SRCDIR)/sources/crypto/src
 ## rpath-link and PKG_CONFIG_PATH all look one level deeper, so without this
 ## nettle cannot find gmp and gnutls cannot find nettle.
 CRYPTO_LIBDIR = lib/$(x86_64-unix_LIBDIR)
+CRYPTO_aarch64_LIBDIR = lib/$(aarch64-unix_LIBDIR)
 
-## --enable-fat or the result SIGILLs on anything older than Broadwell.
-GMP_AUTOCONF_ARGS = --enable-fat --disable-static --enable-shared
-GMP_x86_64_AUTOCONF_ARGS = --libdir=$(GMP_x86_64_DST)/$(CRYPTO_LIBDIR)
+## --enable-fat or the result SIGILLs on anything older than Broadwell. x86 only:
+## aarch64 gmp is built for baseline armv8 and has no fat mode to ask for.
+GMP_AUTOCONF_ARGS = --disable-static --enable-shared
+GMP_x86_64_AUTOCONF_ARGS = --enable-fat --libdir=$(GMP_x86_64_DST)/$(CRYPTO_LIBDIR)
+GMP_aarch64_AUTOCONF_ARGS = --libdir=$(GMP_aarch64_DST)/$(CRYPTO_aarch64_LIBDIR)
 $(eval $(call rules-source,gmp,$(CRYPTO_SRCS)/gmp-$(GMP_VERSION)))
 $(eval $(call rules-autoconf,gmp,x86_64,unix))
+$(eval $(call rules-autoconf,gmp,aarch64,unix))
 
 NETTLE_DEPENDS = gmp
 NETTLE_AUTOCONF_ARGS = --disable-static --enable-shared --disable-documentation --disable-openssl
 NETTLE_x86_64_AUTOCONF_ARGS = --libdir=$(NETTLE_x86_64_DST)/$(CRYPTO_LIBDIR)
+NETTLE_aarch64_AUTOCONF_ARGS = --libdir=$(NETTLE_aarch64_DST)/$(CRYPTO_aarch64_LIBDIR)
 $(eval $(call rules-source,nettle,$(CRYPTO_SRCS)/nettle-$(NETTLE_VERSION)))
 $(eval $(call rules-autoconf,nettle,x86_64,unix))
+$(eval $(call rules-autoconf,nettle,aarch64,unix))
 
 LIBTASN1_AUTOCONF_ARGS = --disable-static --enable-shared --disable-doc --disable-gtk-doc
 LIBTASN1_x86_64_AUTOCONF_ARGS = --libdir=$(LIBTASN1_x86_64_DST)/$(CRYPTO_LIBDIR)
+LIBTASN1_aarch64_AUTOCONF_ARGS = --libdir=$(LIBTASN1_aarch64_DST)/$(CRYPTO_aarch64_LIBDIR)
 $(eval $(call rules-source,libtasn1,$(CRYPTO_SRCS)/libtasn1-$(LIBTASN1_VERSION)))
 $(eval $(call rules-autoconf,libtasn1,x86_64,unix))
+$(eval $(call rules-autoconf,libtasn1,aarch64,unix))
 
 ## Everything switched off here is a dependency we would otherwise ship. SRP and
 ## the OpenSSL compatibility layer need no flag: both are --enable-* and off by
@@ -728,8 +741,10 @@ GNUTLS_AUTOCONF_ARGS = \
   --disable-psk-authentication --disable-anon-authentication --disable-dtls-srtp-support \
 
 GNUTLS_x86_64_AUTOCONF_ARGS = --libdir=$(GNUTLS_x86_64_DST)/$(CRYPTO_LIBDIR)
+GNUTLS_aarch64_AUTOCONF_ARGS = --libdir=$(GNUTLS_aarch64_DST)/$(CRYPTO_aarch64_LIBDIR)
 $(eval $(call rules-source,gnutls,$(CRYPTO_SRCS)/gnutls-$(GNUTLS_VERSION)))
 $(eval $(call rules-autoconf,gnutls,x86_64,unix))
+$(eval $(call rules-autoconf,gnutls,aarch64,unix))
 
 $(OBJ)/.gmp-x86_64-post-build:
 	@# The webview bundle checks the same thing, because the failure is a SIGILL

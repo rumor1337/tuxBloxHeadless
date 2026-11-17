@@ -2065,7 +2065,11 @@ static void verify_main_image( UNICODE_STRING *nt_name )
 
     /* Spelled out rather than derived: the only image checked is the 64-bit
      * client, so the 32-bit loader never gets here and needs no path of its own. */
+#ifdef __aarch64__
+    gnutls = build_path( ntdll_dir, "../../aarch64-linux-gnu/libgnutls.so.30" );
+#else
     gnutls = build_path( ntdll_dir, "../../x86_64-linux-gnu/libgnutls.so.30" );
+#endif
     roots = build_path( ntdll_dir, "../../../share/tuxblox/roots.pem" );
     if (!gnutls || !roots) goto refuse;
 

@@ -188,7 +188,7 @@ void Session::initWine() {
 
     const std::string libDir = proton.libDir.string() + "/";
     const std::vector<std::string> libraryPaths = {
-        libDir + "x86_64-linux-gnu",
+        libDir + proton.hostUnixArch + "-linux-gnu",
         libDir + "i386-linux-gnu"
     };
 
@@ -759,7 +759,7 @@ void Session::startSubsystem() {
         ::_exit(127);
     }
 
-    const std::string unixDir = proton.libDir.string() + "/wine/x86_64-unix/";
+    const std::string unixDir = proton.libDir.string() + "/wine/" + proton.hostUnixArch + "-unix/";
     const std::vector<std::string> command = {unixDir + "wine-preloader", unixDir + "wine",
                                               "C:\\windows\\system32\\csrss.exe"};
 
@@ -805,7 +805,7 @@ int Session::run(const std::vector<std::string>& target) {
     // Run through the preloader directly rather than restarting through
     // start.exe.
     env["WINELOADERNOEXEC"] = "1";
-    const std::string unixDir = proton.libDir.string() + "/wine/x86_64-unix/";
+    const std::string unixDir = proton.libDir.string() + "/wine/" + proton.hostUnixArch + "-unix/";
 
     startSubsystem();
 

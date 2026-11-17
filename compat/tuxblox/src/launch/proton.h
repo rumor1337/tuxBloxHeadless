@@ -69,6 +69,8 @@ public:
     std::filesystem::path wineserverBin;
 
     std::string hostPeArch = "x86_64-windows";
+    // The Unix side Wine runs as: names lib/wine/<arch>-unix and lib/<arch>-linux-gnu.
+    std::string hostUnixArch = "x86_64";
     std::string wow64PeArch = "i386-windows";
 
     FileLock distLock;

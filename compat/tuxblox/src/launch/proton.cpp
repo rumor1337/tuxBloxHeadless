@@ -64,6 +64,7 @@ Proton::Proton(const fs::path& base)
     if (arm64Allowed && machineName() == "aarch64" &&
         fileExists(base / "files" / "bin-arm64", true)) {
         hostPeArch = "aarch64-windows";
+        hostUnixArch = "aarch64";
         defaultPfxDir = base / "files" / "share" / "default_pfx_arm64";
         binDir = base / "files" / "bin-arm64";
         wineBin = binDir / "wine";
