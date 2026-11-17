@@ -20,7 +20,10 @@
 #     plugins whose dependencies are absent at configure time, and a missing
 #     decoder or audio sink makes WebKit abort() rather than degrade -- that
 #     is the Toolbox audio crash.
-FROM registry.gitlab.steamos.cloud/steamrt/sniper/sdk:latest
+# make ARCH=arm64 passes the arm64 steamrt4 SDK (Debian 13) here, with DEBIAN_ARCHIVE=0.
+ARG BASE=registry.gitlab.steamos.cloud/steamrt/sniper/sdk:latest
+FROM ${BASE}
+ARG DEBIAN_ARCHIVE=1
 
 # gcc-10 is the sniper default; WebKitGTK 2.52 needs newer C++.
 ENV CC=gcc-14 CXX=g++-14
@@ -34,7 +37,8 @@ ENV CC=gcc-14 CXX=g++-14
 # build-host.sh about "repair Containerfile's apt sources" is this. The archive has no
 # current Release file either, so Check-Valid-Until has to be off or every update
 # fails on a date rather than a missing package.
-RUN sed -i 's#\(https\?\)://deb.debian.org/debian-security#http://archive.debian.org/debian-security#g; s#\(https\?\)://deb.debian.org/debian#http://archive.debian.org/debian#g; s#\(https\?\)://security.debian.org/debian-security#http://archive.debian.org/debian-security#g' \
+RUN [ "$DEBIAN_ARCHIVE" = 1 ] || exit 0; \
+    sed -i 's#\(https\?\)://deb.debian.org/debian-security#http://archive.debian.org/debian-security#g; s#\(https\?\)://deb.debian.org/debian#http://archive.debian.org/debian#g; s#\(https\?\)://security.debian.org/debian-security#http://archive.debian.org/debian-security#g' \
         /etc/apt/sources.list $(ls /etc/apt/sources.list.d/*.list 2>/dev/null || true) \
     && echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99archive
 
@@ -52,7 +56,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Debian 11's pip predates PEP 668, so --break-system-packages does not exist here.
-RUN pip3 install --upgrade 'meson>=1.4.0'
+# Debian 13 already ships a new enough meson, and its pip refuses system installs (PEP 668).
+RUN meson --version | awk -F. '{exit !($1 > 1 || $2 >= 4)}' || pip3 install --upgrade 'meson>=1.4.0'
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-mako python3-yaml \

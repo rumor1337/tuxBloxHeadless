@@ -20,9 +20,10 @@ set -euo pipefail
 source "$(dirname "$0")/versions.env"
 
 PREFIX=/opt/tuxblox-webview
+TRIPLET="$(uname -m)-linux-gnu"
 mkdir -p "$PREFIX"
-export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/lib/x86_64-linux-gnu/pkgconfig:$PREFIX/share/pkgconfig"
-export LDFLAGS="-Wl,-rpath,$PREFIX/lib -Wl,-rpath,$PREFIX/lib/x86_64-linux-gnu -L$PREFIX/lib -L$PREFIX/lib/x86_64-linux-gnu"
+export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/lib/$TRIPLET/pkgconfig:$PREFIX/share/pkgconfig"
+export LDFLAGS="-Wl,-rpath,$PREFIX/lib -Wl,-rpath,$PREFIX/lib/$TRIPLET -L$PREFIX/lib -L$PREFIX/lib/$TRIPLET"
 export CPPFLAGS="-I$PREFIX/include"
 export CFLAGS="-O2"
 export CXXFLAGS="-O2"
@@ -483,9 +484,11 @@ ninja -C /build/gtk4/_build -j"$JOBS" install
 
 echo ":: Building gmp $GMP_VERSION"
 extract_source "gmp-${GMP_VERSION}.tar.xz" /build/gmp
-cd /build/gmp && ./configure --prefix="$PREFIX" --enable-fat && make -j"$JOBS" && make install && cd /build
+# --enable-fat is x86 only; aarch64 gmp is built for baseline armv8 and runs on every arm64 CPU.
+gmp_fat=""; [ "$(uname -m)" = x86_64 ] && gmp_fat=--enable-fat
+cd /build/gmp && ./configure --prefix="$PREFIX" $gmp_fat && make -j"$JOBS" && make install && cd /build
 gmp_dynsyms="$(nm -D "$PREFIX/lib/libgmp.so")"
-if [[ "$gmp_dynsyms" != *__gmpn_cpuvec* ]]; then
+if [ -n "$gmp_fat" ] && [[ "$gmp_dynsyms" != *__gmpn_cpuvec* ]]; then
     echo "ERROR: libgmp was built without --enable-fat; the bundle will SIGILL on pre-Broadwell CPUs" >&2
     exit 1
 fi

@@ -18,8 +18,21 @@
 set -eo pipefail
 cd "$(dirname "$0")"
 
+# TUXBLOX_ARCH (x86_64 or arm64) and, for arm64, TUXBLOX_BUILDER_BASE come from the top-level Makefile.
+ARCH="${TUXBLOX_ARCH:-x86_64}"
+if [ "$ARCH" = arm64 ]; then
+    Image=tuxblox-webkitgtk-builder-arm64
+    Vol=-arm64
+    ImageArgs=(--platform linux/arm64 --build-arg "BASE=${TUXBLOX_BUILDER_BASE:?set by make ARCH=arm64}"
+               --build-arg DEBIAN_ARCHIVE=0)
+else
+    Image=tuxblox-webkitgtk-builder
+    Vol=
+    ImageArgs=()
+fi
+
 echo ":: Building builder container image"
-podman build -t tuxblox-webkitgtk-builder -f Containerfile .
+podman build "${ImageArgs[@]}" -t "$Image" -f Containerfile .
 
 echo ":: Verifying source archives"
 if [ ! -f sha256sums ]; then
@@ -39,12 +52,12 @@ echo ":: Running dependency + webkitgtk build (this takes a long time -- hours o
 ::    incremental build and finishes in seconds if nothing in webkitgtk itself
 ::    changed, see build-in-container.sh's webkitgtk section)"
 # Empty file: the real header is mounted over it below.
-podman run --rm --network=none -v "$(pwd):/src:ro" -v webkitgtk-prefix:/opt/tuxblox-webview \
+podman run --rm --network=none -v "$(pwd):/src:ro" -v "webkitgtk-prefix$Vol:/opt/tuxblox-webview" \
     -v "$(pwd)/../../wine/dlls/webview2loader/webview2loader_ipc_protocol.h:/src/host/webview2loader_ipc_protocol.h:ro" \
     -v "$(pwd)/../src:/src-webkitgtk:ro" \
     -v "$(pwd)/sources:/sources:ro" \
-    -v webkitgtk-ccache:/ccache -v webkitgtk-src-build:/build/webkitgtk -e JOBS="${JOBS:-4}" \
-    tuxblox-webkitgtk-builder bash -c \
+    -v "webkitgtk-ccache$Vol:/ccache" -v "webkitgtk-src-build$Vol:/build/webkitgtk" -e JOBS="${JOBS:-4}" \
+    "$Image" bash -c \
     "mkdir -p /build-scripts && cp /src/*.sh /src/versions.env /src/sha256sums /src/sources.list /build-scripts/ && \
      bash /build-scripts/build-in-container.sh"
 
@@ -52,13 +65,13 @@ echo ":: Packaging"
 mkdir -p out
 # The tarball's own checksum is what a manifest would lock, so it must not carry the hour it was built.
 : "${SOURCE_DATE_EPOCH:=$(git -C "$(pwd)" log -1 --format=%ct 2>/dev/null || date +%s)}"
-podman run --rm -v webkitgtk-prefix:/opt/tuxblox-webview -v "$(pwd)/out:/out" \
+podman run --rm -v "webkitgtk-prefix$Vol:/opt/tuxblox-webview" -v "$(pwd)/out:/out" \
     -v "$(pwd)/package.sh:/build-scripts/package.sh:ro" \
     -v "$(pwd)/versions.env:/build-scripts/versions.env:ro" \
     -v "$(pwd)/../../../shared/tools/check-archive.py:/build-scripts/check-archive.py:ro" \
     -e SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
-    tuxblox-webkitgtk-builder bash /build-scripts/package.sh
+    "$Image" bash /build-scripts/package.sh
 
 source versions.env
-echo ":: Done. Output: out/webkitgtk-${WEBKITGTK_VERSION}-x86_64.tar.xz"
+echo ":: Done. Output: out/webkitgtk-${WEBKITGTK_VERSION}-${ARCH}.tar.xz"
 echo ":: make webkitgtk moves it into ../prebuilt/ for you. It is gitignored: do not commit it."

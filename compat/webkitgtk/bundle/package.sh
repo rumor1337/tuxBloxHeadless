@@ -19,10 +19,12 @@ set -euo pipefail
 source "$(dirname "$0")/versions.env"
 
 PREFIX=/opt/tuxblox-webview
+TRIPLET="$(uname -m)-linux-gnu"
+ARCH=x86_64; [ "$(uname -m)" = aarch64 ] && ARCH=arm64
 cd "$PREFIX"
 
 gmp_dynsyms="$(nm -D "$PREFIX/lib/libgmp.so")"
-if [[ "$gmp_dynsyms" != *__gmpn_cpuvec* ]]; then
+if [ "$ARCH" = x86_64 ] && [[ "$gmp_dynsyms" != *__gmpn_cpuvec* ]]; then
     echo "ERROR: the libgmp about to be packaged exports no __gmpn_cpuvec, so it is not a" >&2
     echo "       fat build and will SIGILL on CPUs older than this builder. Refusing to package." >&2
     exit 1
@@ -34,20 +36,20 @@ cp -a bin/gdk-pixbuf-query-loaders libexec/gdk-pixbuf-tools/
 cp -a bin/webview2loader-host libexec/
 
 echo ":: Relocating bundle's own libEGL/libGL/libGLESv1_CM/libGLESv2 into gl-fallback/"
-mkdir -p lib/x86_64-linux-gnu/gl-fallback
+mkdir -p lib/$TRIPLET/gl-fallback
 moved=0
 if [ -e share/glvnd/egl_vendor.d/50_mesa.json ]; then
     echo ":: glvnd vendor description present -- loader stays resolvable, nothing relocated"
 else
 for pattern in 'libEGL.so*' 'libGL.so*' 'libGLESv1_CM.so*' 'libGLESv2.so*'; do
-    for f in lib/x86_64-linux-gnu/$pattern; do
+    for f in lib/$TRIPLET/$pattern; do
         [ -e "$f" ] || continue
-        mv -f "$f" lib/x86_64-linux-gnu/gl-fallback/
+        mv -f "$f" lib/$TRIPLET/gl-fallback/
         moved=$((moved + 1))
     done
 done
 fi
-if [ "$moved" -eq 0 ] && [ ! -e lib/x86_64-linux-gnu/share/glvnd ] \
+if [ "$moved" -eq 0 ] && [ ! -e lib/$TRIPLET/share/glvnd ] \
    && [ ! -e share/glvnd/egl_vendor.d/50_mesa.json ]; then
     echo "!! Mesa installed neither a libEGL.so.1 to relocate nor a glvnd vendor" >&2
     echo "!! description at share/glvnd/egl_vendor.d/50_mesa.json -- nothing would" >&2
@@ -88,12 +90,12 @@ find lib libexec etc share -type f \
     for ((i = 0; i < depth; i++)); do up="../$up"; done
     strip --strip-unneeded "$f"
 
-    patchelf --force-rpath --set-rpath "\$ORIGIN:\$ORIGIN/${up}lib:\$ORIGIN/${up}lib/x86_64-linux-gnu" "$f"
+    patchelf --force-rpath --set-rpath "\$ORIGIN:\$ORIGIN/${up}lib:\$ORIGIN/${up}lib/$TRIPLET" "$f"
 
 done
 
 mkdir -p /out
-tar -cJf "/out/webkitgtk-${WEBKITGTK_VERSION}-x86_64.tar.xz" \
+tar -cJf "/out/webkitgtk-${WEBKITGTK_VERSION}-${ARCH}.tar.xz" \
     --sort=name --mtime="@${SOURCE_DATE_EPOCH:?build.sh passes the commit date}" \
     --owner=0 --group=0 --numeric-owner \
     --exclude='libexec/installed-tests' --exclude='share/installed-tests' \
@@ -103,20 +105,20 @@ tar -cJf "/out/webkitgtk-${WEBKITGTK_VERSION}-x86_64.tar.xz" \
     --exclude='lib/libtiffxx.so*' --exclude='lib/libgnutlsxx.so*' \
     --exclude='lib/libturbojpeg.so*' --exclude='lib/libexslt.so*' \
     --exclude='lib/libicuio.so*' --exclude='lib/libicutest.so*' --exclude='lib/libicutu.so*' \
-    --exclude='lib/x86_64-linux-gnu/cairo' \
-    --exclude='lib/x86_64-linux-gnu/libgirepository-2.0.so*' \
-    --exclude='lib/x86_64-linux-gnu/libgthread-2.0.so*' \
-    --exclude='lib/x86_64-linux-gnu/libharfbuzz-cairo.so*' \
-    --exclude='lib/x86_64-linux-gnu/libharfbuzz-gobject.so*' \
-    --exclude='lib/x86_64-linux-gnu/libharfbuzz-gpu.so*' \
-    --exclude='lib/x86_64-linux-gnu/libharfbuzz-raster.so*' \
-    --exclude='lib/x86_64-linux-gnu/libharfbuzz-vector.so*' \
-    --exclude='lib/x86_64-linux-gnu/libgstbadaudio-1.0.so*' \
-    --exclude='lib/x86_64-linux-gnu/libgstcheck-1.0.so*' \
-    --exclude='lib/x86_64-linux-gnu/libgstplay-1.0.so*' \
-    --exclude='lib/x86_64-linux-gnu/libgstplayer-1.0.so*' \
-    --exclude='lib/x86_64-linux-gnu/libgsttranscoder-1.0.so*' \
-    --exclude='lib/x86_64-linux-gnu/libgstwebrtc-1.0.so*' \
+    --exclude="lib/$TRIPLET/cairo" \
+    --exclude="lib/$TRIPLET/libgirepository-2.0.so*" \
+    --exclude="lib/$TRIPLET/libgthread-2.0.so*" \
+    --exclude="lib/$TRIPLET/libharfbuzz-cairo.so*" \
+    --exclude="lib/$TRIPLET/libharfbuzz-gobject.so*" \
+    --exclude="lib/$TRIPLET/libharfbuzz-gpu.so*" \
+    --exclude="lib/$TRIPLET/libharfbuzz-raster.so*" \
+    --exclude="lib/$TRIPLET/libharfbuzz-vector.so*" \
+    --exclude="lib/$TRIPLET/libgstbadaudio-1.0.so*" \
+    --exclude="lib/$TRIPLET/libgstcheck-1.0.so*" \
+    --exclude="lib/$TRIPLET/libgstplay-1.0.so*" \
+    --exclude="lib/$TRIPLET/libgstplayer-1.0.so*" \
+    --exclude="lib/$TRIPLET/libgsttranscoder-1.0.so*" \
+    --exclude="lib/$TRIPLET/libgstwebrtc-1.0.so*" \
     --exclude='*.la' --exclude='lib/cmake' --exclude='lib/icu' \
     --exclude='share/aclocal' --exclude='share/pkgconfig' --exclude='share/cmake' \
     --exclude='share/bash-completion' --exclude='share/zsh' --exclude='share/gettext' \
@@ -133,6 +135,6 @@ tar -cJf "/out/webkitgtk-${WEBKITGTK_VERSION}-x86_64.tar.xz" \
     lib libexec etc share
 
 python3 /build-scripts/check-archive.py --epoch "$SOURCE_DATE_EPOCH" \
-    "/out/webkitgtk-${WEBKITGTK_VERSION}-x86_64.tar.xz"
+    "/out/webkitgtk-${WEBKITGTK_VERSION}-${ARCH}.tar.xz"
 
-echo ":: Wrote /out/webkitgtk-${WEBKITGTK_VERSION}-x86_64.tar.xz"
+echo ":: Wrote /out/webkitgtk-${WEBKITGTK_VERSION}-${ARCH}.tar.xz"
