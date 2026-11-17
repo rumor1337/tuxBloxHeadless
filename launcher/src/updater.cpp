@@ -45,6 +45,11 @@ std::string resolveInstallDir(const std::string& override) {
     return override.empty() ? installDir() : override;
 }
 
+// The bytes published for this machine's processor; the download address already follows hostArch().
+const std::optional<ComponentBytes>& hostBytes(const ReleaseComponent& component) {
+    return std::string(hostArch()) == "arm64" ? component.arm64 : component.x86_64;
+}
+
 } // namespace
 
 double downloadProgressFraction(uint64_t now, uint64_t total, uint64_t manifestSize) {
@@ -61,13 +66,13 @@ EnsureCompatResult ensureCompatInstalled(const ReleaseFile& release, const std::
     };
 
     const auto entry = release.components.find("compat");
-    if (entry == release.components.end() || !entry->second.x86_64.has_value()) {
+    if (entry == release.components.end() || !hostBytes(entry->second).has_value()) {
         const std::string err =
             i18n::trf("Release {0} publishes no compatibility layer.", {release.release});
         report(UpdatePhase::Error, 0.0, err);
         return {false, err};
     }
-    const ComponentBytes& wanted = *entry->second.x86_64;
+    const ComponentBytes& wanted = *hostBytes(entry->second);
 
     // Either answer means the copy on disk is the one this release names, and re-fetching it would
     // cost a gigabyte for nothing. A stamped layer says which release it was published in; one from
@@ -180,12 +185,12 @@ EnsureInstallerResult ensureInstallerBinary(const ReleaseFile& release, const st
     };
 
     const auto entry = release.components.find("installer");
-    if (entry == release.components.end() || !entry->second.x86_64.has_value()) {
+    if (entry == release.components.end() || !hostBytes(entry->second).has_value()) {
         const std::string err = i18n::trf("Release {0} publishes no updater to hand over to.", {release.release});
         report(UpdatePhase::Error, 0.0, err);
         return {false, "", err};
     }
-    const ComponentBytes& wanted = *entry->second.x86_64;
+    const ComponentBytes& wanted = *hostBytes(entry->second);
 
     report(UpdatePhase::PreparingUpdater, 0.0);
     const std::string installerPath = dir + "/TuxBloxInstaller";

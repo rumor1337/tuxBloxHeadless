@@ -399,7 +399,7 @@ void test_a_layer_naming_its_component_version_is_not_refetched() {
     release.release = "3.9.11.0";
     auto &compat = release.components["compat"];
     compat.version = "3.9.0";
-    compat.x86_64 = ComponentBytes{};
+    (std::string(hostArch()) == "arm64" ? compat.arm64 : compat.x86_64) = ComponentBytes{};
 
     // Answers "3.9.0" to --version: its component version, which is what the release names.
     writeVersionStub(dir / "compat" / "main", "3.9.0");
@@ -414,6 +414,20 @@ void test_a_layer_naming_its_component_version_is_not_refetched() {
     printf("  a layer naming its component version is not refetched\n");
 }
 
+// The layer is chosen by this machine's processor. A release that publishes it only for the other
+// architecture has nothing this machine can run, so it must say so rather than check the wrong bytes.
+void test_a_layer_published_only_for_the_other_architecture_is_not_installable() {
+    const fs::path dir = gWork / "compat_other_arch";
+    fs::create_directories(dir);
+    ReleaseFile release;
+    release.release = "3.9.11.0";
+    auto &compat = release.components["compat"];
+    compat.version = "3.9.0";
+    (std::string(hostArch()) == "arm64" ? compat.x86_64 : compat.arm64) = ComponentBytes{};
+    assert(!ensureCompatInstalled(release, "http://127.0.0.1:1", dir.string(), nullptr, nullptr).ok);
+    printf("  a layer published only for the other architecture is not installable\n");
+}
+
 int main() {
     gWork = fs::temp_directory_path() / "tuxblox_test_updater";
     fs::remove_all(gWork);
@@ -422,6 +436,7 @@ int main() {
     test_download_progress_fraction();
     test_a_flatpak_bundle_is_judged_on_component_versions_not_the_release();
     test_a_layer_naming_its_component_version_is_not_refetched();
+    test_a_layer_published_only_for_the_other_architecture_is_not_installable();
     test_reads_the_four_components_it_can_ask();
     test_a_component_that_cannot_be_asked_counts_as_absent();
     test_an_unpublished_or_malformed_pointer_is_nothing_to_update_to();
