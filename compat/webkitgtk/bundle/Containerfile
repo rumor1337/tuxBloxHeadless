@@ -24,6 +24,10 @@
 ARG BASE=registry.gitlab.steamos.cloud/steamrt/sniper/sdk:latest
 FROM ${BASE}
 ARG DEBIAN_ARCHIVE=1
+# The arm64 SDK puts llvm-mingw's gcc/cc wrappers, which are clang, ahead of the real gcc-14, and
+# clang refuses GCC-only link flags (-export-dynamic) that this stack's builds pass. Set for arm64.
+ARG GCC_FIRST=
+ENV PATH=${GCC_FIRST:+/usr/lib/ccache:/usr/bin:}$PATH
 
 # gcc-10 is the sniper default; WebKitGTK 2.52 needs newer C++.
 ENV CC=gcc-14 CXX=g++-14

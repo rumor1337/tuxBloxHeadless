@@ -24,7 +24,7 @@ if [ "$ARCH" = arm64 ]; then
     Image=tuxblox-webkitgtk-builder-arm64
     Vol=-arm64
     ImageArgs=(--platform linux/arm64 --build-arg "BASE=${TUXBLOX_BUILDER_BASE:?set by make ARCH=arm64}"
-               --build-arg DEBIAN_ARCHIVE=0)
+               --build-arg DEBIAN_ARCHIVE=0 --build-arg GCC_FIRST=1)
 else
     Image=tuxblox-webkitgtk-builder
     Vol=
