@@ -21,10 +21,13 @@ if(NOT TUXBLOX_FLAGS_DIR)
     set(TUXBLOX_FLAGS_DIR "${CMAKE_CURRENT_LIST_DIR}")
 endif()
 
-# Only x86_64 is built today; arm64 is reserved in the release layout and gets its file
-# when it gets a build.
+# The architecture being compiled for, named the way the release layout names it.
 if(NOT TUXBLOX_FLAGS_ARCH)
-    set(TUXBLOX_FLAGS_ARCH "x86_64")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+        set(TUXBLOX_FLAGS_ARCH "arm64")
+    else()
+        set(TUXBLOX_FLAGS_ARCH "x86_64")
+    endif()
 endif()
 
 set(DEFAULT_FLAGS_JSON "${TUXBLOX_FLAGS_DIR}/DefaultFlags-${TUXBLOX_FLAGS_ARCH}.json")

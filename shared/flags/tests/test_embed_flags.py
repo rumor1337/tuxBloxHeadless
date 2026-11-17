@@ -154,6 +154,9 @@ class ShippedFilesTests(unittest.TestCase):
     def test_the_shipped_flags_are_valid(self):
         self.check_real(self.REAL)
 
+    def test_the_shipped_arm64_flags_are_valid(self):
+        self.check_real("DefaultFlags-arm64.json")
+
     # There is one file, so a flag only honoured on a user's own machine has to live in it
     # -- it is dropped on the way out rather than refused, and said out loud so a deploy
     # cannot quietly publish a different set from the one in the repository.

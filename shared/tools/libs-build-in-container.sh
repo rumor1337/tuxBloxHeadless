@@ -84,7 +84,7 @@ buildNghttp2() {
 buildOpenssl() {
     copySource shared/crypto/openssl /build/openssl
     cd /build/openssl
-    ./Configure linux-x86_64 --prefix="$Prefix" --openssldir="$Prefix/ssl" --libdir=lib \
+    ./Configure "linux-$(uname -m)" --prefix="$Prefix" --openssldir="$Prefix/ssl" --libdir=lib \
         no-shared no-dso no-engine no-tests no-apps no-docs \
         no-legacy no-md2 no-md4 no-rc2 no-rc4 no-rc5 no-idea no-seed no-camellia \
         no-weak-ssl-ciphers no-ssl3 no-comp -O2

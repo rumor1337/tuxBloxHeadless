@@ -86,7 +86,7 @@ ldd "$cache/TuxBloxInstaller-ui" | tee /tmp/deps.txt
 if grep -q 'not found' /tmp/deps.txt; then printf 'FAIL: unresolved libraries\n'; exit 1; fi
 
 # Every resolved library must sit in the payload or be a known host library: the installer's own libcurl and libarchive and the X11 client libraries, with what they pull in, the C and C++ runtimes, and the X11 client libraries.
-hostOk="$(cd /usr/lib/x86_64-linux-gnu && ldd libcurl.so.4 libarchive.so.13 libX11.so.6 libXcursor.so.1 libXi.so.6 libxcb-render.so.0 | awk '/=>/ {print $1}' | sort -u)"
+hostOk="$(cd "/usr/lib/$(uname -m)-linux-gnu" && ldd libcurl.so.4 libarchive.so.13 libX11.so.6 libXcursor.so.1 libXi.so.6 libxcb-render.so.0 | awk '/=>/ {print $1}' | sort -u)"
 hostPattern='^(libc\.so\.6|libm\.so\.6|libdl\.so\.2|libpthread\.so\.0|librt\.so\.1|libresolv\.so\.2|libstdc\+\+\.so\.6|libgcc_s\.so\.1|libcurl\.so\.4|libarchive\.so\.13|libX[a-zA-Z0-9]*\.so\.[0-9]+|libxcb[a-z-]*\.so\.[0-9]+|libz\.so\.1|libexpat\.so\.1|libpng16\.so\.16|libpcre2-8\.so\.0)$'
 stray=""
 while read -r name arrow path _; do
@@ -111,7 +111,7 @@ maps="$(runuser -u tester -- cat "/proc/$pid/maps")"
 mapped="$(grep -c "$cache/" <<<"$maps" || true)"
 test "$mapped" -gt 0 || { printf 'FAIL: the running interface maps nothing from the payload\n'; exit 1; }
 # Compared by soname, and a library the installer's own host libraries already loaded is exempt: the first copy loaded wins and there is nothing the payload can do about it.
-shipped="$(ls "$cache/lib/x86_64-linux-gnu" | sed -E 's/(\.so\.[0-9]+).*/\1/' | sort -u)"
+shipped="$(ls "$cache/lib/$(uname -m)-linux-gnu" | sed -E 's/(\.so\.[0-9]+).*/\1/' | sort -u)"
 outside=""
 while read -r file; do
     soname="$(basename "$file" | sed -E 's/(\.so\.[0-9]+).*/\1/')"

@@ -1,0 +1,26 @@
+# The arm64 build image, used by `make ARCH=arm64`. The x86_64 one is Containerfile.
+#
+# There is no arm64 sniper SDK, so this starts from the arm64 steamrt4 SDK that compat/Makefile.in
+# already uses for TARGET_ARCH=arm64; the Makefile passes it in as BASE. That SDK is Debian 13, so
+# its glib, meson, nghttp2 and libsoup dependencies are new enough as packaged and none of the
+# workarounds in Containerfile are needed. It also means the arm64 build needs glibc 2.41 or newer
+# on the machine it runs on.
+#
+# Everything is single-architecture: an arm64 layer has no 32-bit Unix side (32-bit Windows code
+# goes through Wine's WoW64 and FEX instead), so nothing here is installed for a second arch.
+ARG BASE
+FROM ${BASE}
+
+# What Containerfile adds on top of sniper, minus the :i386 halves: libsoup's dependencies, glib's
+# build dependencies, Wayland for Wine and GTK, and the interface stack's patchelf, sassc and
+# rsvg-convert. The compiler, cmake, ninja, ccache and python3 the builds call by name are listed
+# too, so a gap in the SDK fails here rather than half way through a build.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc-14 g++-14 cmake ninja-build meson ccache pkg-config python3 curl git \
+        libsqlite3-dev libpsl-dev libbrotli-dev libnghttp2-dev \
+        libglib2.0-dev libffi-dev zlib1g-dev libmount-dev gettext \
+        libwayland-dev libwayland-bin libxkbcommon-dev libxkbregistry-dev \
+        patchelf sassc librsvg2-bin \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN meson --version && pkg-config --modversion glib-2.0 libnghttp2 && gcc-14 --version | head -1

@@ -19,7 +19,7 @@
 set(UI_PC_DIR "${CMAKE_BINARY_DIR}/ui-pkgconfig")
 file(REMOVE_RECURSE "${UI_PC_DIR}")
 file(MAKE_DIRECTORY "${UI_PC_DIR}")
-file(GLOB UI_PC_FILES "${TUXBLOX_UI_STACK_DEV}/lib/pkgconfig/*.pc" "${TUXBLOX_UI_STACK_DEV}/lib/x86_64-linux-gnu/pkgconfig/*.pc")
+file(GLOB UI_PC_FILES "${TUXBLOX_UI_STACK_DEV}/lib/pkgconfig/*.pc" "${TUXBLOX_UI_STACK_DEV}/lib/${CMAKE_LIBRARY_ARCHITECTURE}/pkgconfig/*.pc")
 foreach(UI_PC_FILE ${UI_PC_FILES})
     file(STRINGS "${UI_PC_FILE}" UI_PC_LINES)
     list(FILTER UI_PC_LINES EXCLUDE REGEX "^Requires\\.private:")

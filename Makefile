@@ -20,6 +20,35 @@ JOBS ?= $(shell nproc)
 
 -include config.mk
 
+# x86_64 or arm64. arm64 is headless-only: no AppImage, no Flatpak.
+# shortcut: one checkout per ARCH, since build/, shared/ui/dist and the in-tree component build
+# dirs are not split by architecture; split them if both have to live in one tree.
+ARCH ?= x86_64
+ifeq ($(ARCH),x86_64)
+TRIPLET := x86_64-linux-gnu
+LDSO := ld-linux-x86-64\.so\.2
+PLATFORM := linux/amd64
+WINE_ARCH := x86_64
+GLIBC_FLOOR := 2.31
+BUILDER := tuxblox-builder
+BUILDER_FILE := Containerfile
+else ifeq ($(ARCH),arm64)
+TRIPLET := aarch64-linux-gnu
+LDSO := ld-linux-aarch64\.so\.1
+PLATFORM := linux/arm64
+WINE_ARCH := aarch64
+# Set by the steamrt4 SDK the arm64 build runs in (Debian 13).
+GLIBC_FLOOR := 2.41
+BUILDER := tuxblox-builder-arm64
+BUILDER_FILE := Containerfile.arm64
+# The same SDK compat/Makefile.in names for TARGET_ARCH=arm64, so both halves share one glibc.
+ARM64_SDK := $(shell sed -n 's/^[[:space:]]*STEAMRT_IMAGE ?= \(.*arm64.*\)/\1/p' compat/Makefile.in)
+TUXBLOX_NO_PACKAGES := 1
+# The launcher smoke test runs in debian:13 for arm64: its default, Debian 11, has too old a glibc.
+else
+$(error ARCH must be x86_64 or arm64, not $(ARCH))
+endif
+
 ifeq ($(origin SOURCE_DATE_EPOCH),undefined)
 SOURCE_DATE_EPOCH := $(shell git -C $(ROOT) log -1 --format=%ct 2>/dev/null)
 endif
@@ -42,7 +71,7 @@ INSTALLER := $(NATIVE)/TuxBloxInstaller
 STUDIO_MCP := $(NATIVE)/studio-mcp
 COMPAT := $(NATIVE)/compat/main
 UI_STACK_VERSION := $(shell sed -n 's/^UI_STACK_VERSION=//p' shared/ui/versions.env)
-UI := $(UI_DIST)/ui-stack-$(UI_STACK_VERSION)-x86_64.tar.zst
+UI := $(UI_DIST)/ui-stack-$(UI_STACK_VERSION)-$(ARCH).tar.zst
 LIBS := $(ART)/shared/lib/libcurl.a
 PATCHES := $(ART)/.patches
 PODMAN := $(ART)/.podman
@@ -66,7 +95,7 @@ UI_MOUNTS :=
 UI_ARGS :=
 endif
 WEBKITGTK_VERSION := $(shell sed -n 's/^WEBKITGTK_VERSION=//p' compat/webkitgtk/bundle/versions.env 2>/dev/null)
-WEBVIEW := $(ROOT)/compat/webkitgtk/prebuilt/webkitgtk-$(WEBKITGTK_VERSION)-x86_64.tar.xz
+WEBVIEW := $(ROOT)/compat/webkitgtk/prebuilt/webkitgtk-$(WEBKITGTK_VERSION)-$(ARCH).tar.xz
 
 FIND := find -L
 SHARED_SRC := $(shell $(FIND) shared -type f \
@@ -133,6 +162,7 @@ APPIMAGE_APPDIR := $(APPIMAGE_DIR)/TuxBloxInstaller.AppDir
 APPIMAGE := $(APPIMAGE_DIR)/TuxBloxInstaller.AppImage
 
 appimage:
+	@[ $(ARCH) = x86_64 ] || { printf '!! %s is x86_64 only, ARCH=%s is headless\n' '$@' '$(ARCH)' >&2; exit 1; }
 	@mkdir -p $(APPIMAGE_DIR)
 	$(MAKE) --no-print-directory TUXBLOX_APPIMAGE=1 TUXBLOX_SKIP_SMOKE=1 INSTALLER=$(APPIMAGE_DIR)/TuxBloxInstaller installer
 	@rm -rf $(APPIMAGE_APPDIR)
@@ -157,6 +187,7 @@ FLATPAK_BUNDLE := $(FLATPAK_DIR)/net.tuxblox.TuxBlox.flatpak
 FLATPAK_MANIFEST := packaging/flatpak/net.tuxblox.TuxBlox.yml
 
 flatpak:
+	@[ $(ARCH) = x86_64 ] || { printf '!! %s is x86_64 only, ARCH=%s is headless\n' '$@' '$(ARCH)' >&2; exit 1; }
 	@[ -e $(STUDIO_MCP) ] || { printf '!! not built yet: %s\n   run `make` first, then `make flatpak`\n' '$(STUDIO_MCP)' >&2; exit 1; }
 	@mkdir -p $(FLATPAK_DIR)
 	$(MAKE) --no-print-directory TUXBLOX_DONT_INCREMENT_BUILD=1 TUXBLOX_FLATPAK=1 \
@@ -225,15 +256,16 @@ record-provenance:
 	     printf ':: Built from %s\n' "$$(echo "$$Commit" | cut -c1-9)"; \
 	 fi
 
-$(PODMAN): Containerfile
+$(PODMAN): $(BUILDER_FILE)
 	@mkdir -p $(dir $@)
 	podman info >/dev/null
-	podman build -t tuxblox-builder -f $(ROOT)/Containerfile $(ROOT)
+	podman build --platform $(PLATFORM) $(if $(ARM64_SDK),--build-arg BASE=$(ARM64_SDK)) \
+	    -t $(BUILDER) -f $(ROOT)/$(BUILDER_FILE) $(ROOT)
 	@touch $@
 
 $(PATCHES): compat/Makefile.in $(wildcard compat/patches/*/*)
 	@mkdir -p $(dir $@)
-	$(ROOT)/compat/apply-patches.sh
+	TARGET_ARCH=$(ARCH) $(ROOT)/compat/apply-patches.sh
 	@touch $@
 
 LIBS_SUBMODULES := shared/crypto/openssl:OPENSSL_COMMIT shared/network/libcurl:CURL_COMMIT \
@@ -249,7 +281,7 @@ $(LIBS): $(wildcard shared/tools/libs-*.sh) | $(PODMAN)
 	podman run --rm --userns=keep-id -e JOBS="$(JOBS)" $(LIBS_COMMIT_ARGS) \
 	    -v $(ROOT):/src:ro,z -v $(ART)/shared:/out:z -v $(ART)/shared-build:/build:z \
 	    -v $(CCACHE_DIR):/ccache:z -e CCACHE_DIR=/ccache -e CCACHE_MAXSIZE=30G \
-	    tuxblox-builder bash /src/shared/tools/libs-build-in-container.sh
+	    $(BUILDER) bash /src/shared/tools/libs-build-in-container.sh
 
 define UI_BUILD
 set -euo pipefail
@@ -257,7 +289,7 @@ set -euo pipefail
 source /src/ui/versions.env
 
 Prefix=/opt/tuxblox-ui
-LibDir="$$Prefix/lib/x86_64-linux-gnu"
+LibDir="$$Prefix/lib/$(TRIPLET)"
 Markers="$$Prefix/.done"
 JOBS="$${JOBS:-$$(nproc)}"
 SourcesDir="$${TUXBLOX_SOURCES_DIR:-/sources}"
@@ -376,7 +408,7 @@ buildLibtiff() {
 
 buildLibjpeg() {
     extractSource "libjpeg-turbo-$${JPEG_TURBO_VERSION}.tar.gz" /build/libjpeg
-    cmake -S /build/libjpeg -B /build/libjpeg/_b -G Ninja -DCMAKE_INSTALL_PREFIX="$$Prefix" -DCMAKE_INSTALL_LIBDIR=lib/x86_64-linux-gnu \
+    cmake -S /build/libjpeg -B /build/libjpeg/_b -G Ninja -DCMAKE_INSTALL_PREFIX="$$Prefix" -DCMAKE_INSTALL_LIBDIR=lib/$(TRIPLET) \
         -DCMAKE_BUILD_TYPE=Release -DENABLE_STATIC=OFF -DWITH_TURBOJPEG=OFF -DWITH_JAVA=OFF
     ninja -C /build/libjpeg/_b -j"$$JOBS" install
 }
@@ -615,15 +647,15 @@ set -euo pipefail
 source /src/ui/versions.env
 
 Prefix=/opt/tuxblox-ui
-LibRel=lib/x86_64-linux-gnu
+LibRel=lib/$(TRIPLET)
 StageDir=/tmp/ui-stack-stage
 OutDir=/out
-Tarball="ui-stack-$${UI_STACK_VERSION}-x86_64.tar.zst"
+Tarball="ui-stack-$${UI_STACK_VERSION}-$(ARCH).tar.zst"
 export PATH="$$Prefix/bin:$$PATH"
 
 HostAllowList=(
     '^libc\.so\.6$$' '^libm\.so\.6$$' '^libdl\.so\.2$$' '^libpthread\.so\.0$$' '^librt\.so\.1$$' '^libresolv\.so\.2$$'
-    '^ld-linux-x86-64\.so\.2$$'
+    '^$(LDSO)$$'
     '^libX11\.so\.6$$' '^libX11-xcb\.so\.1$$' '^libXau\.so\.6$$' '^libXdmcp\.so\.6$$' '^libXext\.so\.6$$' '^libXrender\.so\.1$$'
     '^libXi\.so\.6$$' '^libXrandr\.so\.2$$' '^libXcursor\.so\.1$$' '^libXdamage\.so\.1$$' '^libXfixes\.so\.3$$' '^libXinerama\.so\.1$$'
     '^libxcb\.so\.1$$' '^libxcb-render\.so\.0$$' '^libxcb-shm\.so\.0$$'
@@ -742,8 +774,8 @@ checkSymbolVersions() {
         printf 'ERROR: something in the stack needs libstdc++ symbols (%s); it must be linked statically instead\n' "$$glibcxxMax" >&2
         exit 1
     fi
-    if [ "$$(printf '%s\n%s\n' "$$glibcMax" "GLIBC_2.31" | sort -V | tail -1)" != "GLIBC_2.31" ]; then
-        printf 'ERROR: the stack needs %s, above the glibc 2.31 floor\n' "$$glibcMax" >&2
+    if [ "$$(printf '%s\n%s\n' "$$glibcMax" "GLIBC_$(GLIBC_FLOOR)" | sort -V | tail -1)" != "GLIBC_$(GLIBC_FLOOR)" ]; then
+        printf 'ERROR: the stack needs %s, above the glibc $(GLIBC_FLOOR) floor\n' "$$glibcMax" >&2
         exit 1
     fi
 }
@@ -812,13 +844,13 @@ $(UI): shared/ui/versions.env shared/ui/sources.list Makefile | $(PODMAN)
 	    -e JOBS="$(JOBS)" -e LIBADWAITA_SOURCE="$(LIBADWAITA_SHORT)" \
 	    -e CC=gcc-14 -e CXX=g++-14 \
 	    -v $(CCACHE_DIR):/ccache:z -e CCACHE_DIR=/ccache -e CCACHE_MAXSIZE=30G \
-	    tuxblox-builder bash -s
+	    $(BUILDER) bash -s
 	printf '%s' "$$UI_PACKAGE" | podman run -i --rm --userns=keep-id --network=none \
 	    -v $(ROOT)/shared:/src:ro -v $(UI_DIST)/prefix:/opt/tuxblox-ui:ro -v $(UI_DIST)/out:/out \
 	    -e LIBADWAITA_SOURCE="$(LIBADWAITA_SHORT)" -e LIBADWAITA_COMMIT="$(LIBADWAITA_HEAD)" \
 	    -e CXX=g++-14 -e TUXBLOX_RELEASE="$(RELEASE)" -e TUXBLOX_CHANNEL="$(CHANNEL)" \
 	    -e SOURCE_DATE_EPOCH="$(SOURCE_DATE_EPOCH)" \
-	    tuxblox-builder bash -s
+	    $(BUILDER) bash -s
 	rm -rf $(UI_DIST)/dev && mv $(UI_DIST)/out/dev $(UI_DIST)/dev
 	rm -f $(UI_DIST)/ui-stack-*.tar.zst
 	mv $(UI_DIST)/out/ui-stack-*.tar.zst $(UI_DIST)/
@@ -839,7 +871,7 @@ $(INSTALLER): $(INSTALLER_SRC) $(SHARED_SRC) $(LIBS) $(UI) $(TUXBLOX_ICONS) | $(
 	    -v $(ROOT)/shared/flags:/shared-flags:ro,z -v $(ROOT)/shared/i18n:/shared-i18n:ro,z \
 	    -v $(ROOT)/shared/translations:/shared-translations:ro,z $(UI_MOUNTS) \
 	    -v $(CCACHE_DIR):/ccache:z -e CCACHE_DIR=/ccache -e CCACHE_MAXSIZE=30G -w /src \
-	    tuxblox-builder bash -c 'cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release \
+	    $(BUILDER) bash -c 'cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release \
 	        -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
 	        -DTUXBLOX_ASSETS=/assets -DTUXBLOX_ASSETS_BUILD=/assets-build -DTUXBLOX_SHARED_DIR=/shared -DTUXBLOX_SHARED_CRYPTO=/shared-crypto/src \
 	        -DTUXBLOX_SHARED_RELEASE=/shared-release/src -DTUXBLOX_SHARED_FLAGS=/shared-flags \
@@ -863,7 +895,7 @@ $(STUDIO_MCP): $(STUDIO_MCP_SRC) $(LAUNCHER_SRC) $(SHARED_SRC) $(LIBS) | $(PODMA
 	    -v $(ROOT)/studio-mcp:/src:Z -v $(ROOT)/launcher:/launcher:ro,z \
 	    -v $(ROOT)/shared/release:/shared-release:ro,z \
 	    -v $(CCACHE_DIR):/ccache:z -e CCACHE_DIR=/ccache -e CCACHE_MAXSIZE=30G -w /src \
-	    tuxblox-builder bash -c 'cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release \
+	    $(BUILDER) bash -c 'cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release \
 	        -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
 	        -DTUXBLOX_LAUNCHER_DIR=/launcher -DTUXBLOX_SHARED_RELEASE=/shared-release/src \
 	        && cmake --build build -j"$(JOBS)" && cd build && ctest --output-on-failure'
@@ -890,7 +922,7 @@ $(LAUNCHER): $(LAUNCHER_SRC) $(SHARED_SRC) $(LIBS) $(UI) $(ASSET_SVGS) $(TUXBLOX
 	    -v $(ROOT)/shared/paths:/shared-paths:ro,z -v $(ROOT)/shared/i18n:/shared-i18n:ro,z \
 	    -v $(ROOT)/shared/translations:/shared-translations:ro,z \
 	    -v $(CCACHE_DIR):/ccache:z -e CCACHE_DIR=/ccache -e CCACHE_MAXSIZE=30G -w /src \
-	    tuxblox-builder bash -c 'cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release \
+	    $(BUILDER) bash -c 'cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release \
 	        -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
 	        -DTUXBLOX_UI_SRC=/ui-src -DTUXBLOX_UI_STACK_DEV=/ui-dev -DTUXBLOX_ASSETS=/assets -DTUXBLOX_ASSETS_BUILD=/assets-build -DTUXBLOX_SHARED_DIR=/shared \
 	        -DTUXBLOX_SHARED_CRYPTO=/shared-crypto/src -DTUXBLOX_SHARED_RELEASE=/shared-release/src \
@@ -898,7 +930,7 @@ $(LAUNCHER): $(LAUNCHER_SRC) $(SHARED_SRC) $(LIBS) $(UI) $(ASSET_SVGS) $(TUXBLOX
 	        -DTUXBLOX_I18N_DIR=/shared-i18n -DTUXBLOX_TRANSLATIONS_DIR=/shared-translations \
 	        $${LIBADWAITA_ARG:-} $${FLATPAK_ARG:-} && cmake --build build -j"$(JOBS)"'
 	@if [ ! -f launcher/build/TuxBloxLauncher ]; then echo "!! launcher/build/TuxBloxLauncher was not built" >&2; exit 1; fi
-	@if [ -z "$$TUXBLOX_SKIP_SMOKE" ]; then cd launcher && ./smoke-test.sh build/TuxBloxLauncher $(UI); \
+	@if [ -z "$$TUXBLOX_SKIP_SMOKE" ]; then cd launcher && $(if $(ARM64_SDK),TUXBLOX_SMOKE_IMAGE=debian:13) ./smoke-test.sh build/TuxBloxLauncher $(UI); \
 	 else echo "!! TUXBLOX_SKIP_SMOKE set, the fresh-install smoke test was NOT run" >&2; fi
 	@mkdir -p $(ART)
 	rm -rf $(ART)/launcher && mv launcher/build $(ART)/launcher
@@ -932,13 +964,13 @@ fi
 cp "$$CaHeader" "$$Work/src/"
 
 "$$ROOT/compat/tuxblox/tools/embed-data.py" "$$ROOT/compat/tuxblox/data" "$$Work/src/embedded_data.h"
-"$$ROOT/shared/flags/tools/embed-flags.py" "$$ROOT/shared/flags/DefaultFlags-x86_64.json" \
+"$$ROOT/shared/flags/tools/embed-flags.py" "$$ROOT/shared/flags/DefaultFlags-$(ARCH).json" \
     "$$Work/src/tuxblox_default_flags.h" kTuxBloxDefaultFlagsJson
 
 podman run --rm --userns=keep-id -v "$$Work:/work:Z" -w /work/src \
     -v "$$ROOT/build/.artifacts/shared:/shared:ro,z" \
     -e TUXBLOX_COMPAT_VERSION -e TUXBLOX_RELEASE -e TUXBLOX_CHANNEL \
-    tuxblox-builder sh -c 'g++ -std=c++17 -O2 -Wall -Wextra -static-libstdc++ -static-libgcc \
+    $(BUILDER) sh -c 'g++ -std=c++17 -O2 -Wall -Wextra -static-libstdc++ -static-libgcc \
         -I. -Ithird_party -Ishared_flags -Ishared_release -I/shared/include \
         -DTUXBLOX_VERSION="\"$$TUXBLOX_COMPAT_VERSION\"" -DTUXBLOX_RELEASE="\"$$TUXBLOX_RELEASE\"" \
         -DTUXBLOX_CHANNEL="\"$$TUXBLOX_CHANNEL\"" \
@@ -966,7 +998,8 @@ define prepare_layer
 	    find $$d -name 'config.h.in' -exec touch {} +; \
 	    find $$d -name 'Makefile.in' -exec touch {} +; \
 	done
-	cd $(PROTON) && $(ROOT)/compat/configure.sh --enable-ccache
+	cd $(PROTON) && $(ROOT)/compat/configure.sh --enable-ccache --target-arch=$(ARCH) \
+	    $(if $(ARM64_SDK),--proton-sdk-image=$(BUILDER))
 	cd $(PROTON) && make -j$(JOBS) TUXBLOX_COMPAT_VERSION=$(COMPAT_VERSION) all-source
 	cd $(PROTON)/src-glslang && rm -rf External/spirv-tools External/googletest && \
 	    key=$$(sha256sum known_good.json | cut -c1-16); \
@@ -976,8 +1009,8 @@ define prepare_layer
 	        tar -cf "$$cache.part" External && mv -f "$$cache.part" "$$cache" && \
 	        echo ":: Cached glslang externals for future builds"; fi
 	cd compat/submodules/dxvk-nvapi && git submodule update --init --recursive
-	cd $(PROTON) && make wine-x86_64-configure TUXBLOX_COMPAT_VERSION=$(COMPAT_VERSION)
-	cd $(PROTON)/obj-wine-x86_64 && make nls/locale.nls
+	cd $(PROTON) && make wine-$(WINE_ARCH)-configure TUXBLOX_COMPAT_VERSION=$(COMPAT_VERSION)
+	cd $(PROTON)/obj-wine-$(WINE_ARCH) && make nls/locale.nls
 endef
 
 $(COMPAT): $(COMPAT_SRC) $(PATCHES) $(LIBS) $(LAUNCHER) $(WEBVIEW) | $(PODMAN)
@@ -1007,9 +1040,9 @@ compat-build: $(COMPAT_SRC) $(PATCHES) $(LIBS) | $(PODMAN)
 .PHONY: webkitgtk
 define build_webview
 	$(ROOT)/compat/webkitgtk/bundle/fetch-sources.sh
-	cd compat/webkitgtk/bundle && ./build.sh
+	cd compat/webkitgtk/bundle && TUXBLOX_ARCH=$(ARCH) TUXBLOX_BUILDER_BASE=$(ARM64_SDK) ./build.sh
 	@mkdir -p $(dir $(WEBVIEW))
-	mv compat/webkitgtk/bundle/out/webkitgtk-$(WEBKITGTK_VERSION)-x86_64.tar.xz $(WEBVIEW)
+	mv compat/webkitgtk/bundle/out/webkitgtk-$(WEBKITGTK_VERSION)-$(ARCH).tar.xz $(WEBVIEW)
 endef
 
 $(WEBVIEW): | $(PODMAN)

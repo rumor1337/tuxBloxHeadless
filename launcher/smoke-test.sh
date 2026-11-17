@@ -181,7 +181,7 @@ ldd "$root/TuxBloxLauncher" | tee /tmp/deps.txt
 if grep -q 'not found' /tmp/deps.txt; then fail 'unresolved libraries'; fi
 
 # Every resolved library must sit in the stack or be a known host library: libcurl and libarchive and the X11 client libraries with what they pull in, and the C and C++ runtimes.
-hostOk="$(cd /usr/lib/x86_64-linux-gnu && ldd libcurl.so.4 libarchive.so.13 libX11.so.6 libXcursor.so.1 libXi.so.6 libxcb-render.so.0 | awk '/=>/ {print $1}' | sort -u)"
+hostOk="$(cd "/usr/lib/$(uname -m)-linux-gnu" && ldd libcurl.so.4 libarchive.so.13 libX11.so.6 libXcursor.so.1 libXi.so.6 libxcb-render.so.0 | awk '/=>/ {print $1}' | sort -u)"
 hostPattern='^(libc\.so\.6|libm\.so\.6|libdl\.so\.2|libpthread\.so\.0|librt\.so\.1|libresolv\.so\.2|libstdc\+\+\.so\.6|libgcc_s\.so\.1|libcurl\.so\.4|libarchive\.so\.13|libX[a-zA-Z0-9]*\.so\.[0-9]+|libxcb[a-z-]*\.so\.[0-9]+|libz\.so\.1|libexpat\.so\.1|libpng16\.so\.16|libpcre2-8\.so\.0)$'
 stray=""
 while read -r name arrow path _; do

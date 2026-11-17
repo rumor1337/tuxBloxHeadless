@@ -315,7 +315,7 @@ if(TUXBLOX_UI_STACK_DEV)
     # The interface libraries are installed in the libtuxblox folder beside this binary
     set_target_properties(TuxBloxLauncher PROPERTIES
         BUILD_WITH_INSTALL_RPATH TRUE
-        INSTALL_RPATH "$ORIGIN/libtuxblox/lib/x86_64-linux-gnu:$ORIGIN/libtuxblox/lib")
+        INSTALL_RPATH "$ORIGIN/libtuxblox/lib/${CMAKE_LIBRARY_ARCHITECTURE}:$ORIGIN/libtuxblox/lib")
     add_dependencies(TuxBloxLauncher generate_thirdparty_license_headers generate_license_header generate_font_header)
 endif()
 
