@@ -39,12 +39,17 @@ jobs:
       - name: Install podman
         run: command -v podman || { sudo apt-get update && sudo apt-get install -y podman; }
 
+      # git's tree ids name exactly the sources the bundle is built from (hashFiles cannot walk them).
+      - name: Key the bundle on its sources
+        id: key
+        run: echo "tree=$(git rev-parse HEAD:compat/webkitgtk/bundle HEAD:compat/webkitgtk/src | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
       - name: Restore the finished bundle
         id: bundle
         uses: actions/cache/restore@v4
         with:
           path: compat/webkitgtk/prebuilt
-          key: webkitgtk-arm64-${{ hashFiles('compat/webkitgtk/bundle/**', 'compat/webkitgtk/src/**') }}
+          key: webkitgtk-arm64-${{ steps.key.outputs.tree }}
 
       # build.sh keeps its ccache in a podman volume; it is exported to a tarball between runs.
       - name: Restore ccache
