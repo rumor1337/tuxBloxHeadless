@@ -13,14 +13,15 @@ FROM ${BASE}
 
 # What Containerfile adds on top of sniper, minus the :i386 halves: libsoup's dependencies, glib's
 # build dependencies, Wayland for Wine and GTK, and the interface stack's patchelf, sassc and
-# rsvg-convert. The compiler, cmake, ninja, ccache and python3 the builds call by name are listed
-# too, so a gap in the SDK fails here rather than half way through a build.
+# rsvg-convert. librsvg2-dev is here because GTK links librsvg and sniper carries it already; this
+# SDK does not, and GTK then tries to download it. The compiler, cmake, ninja, ccache and python3
+# the builds call by name are listed too, so a gap in the SDK fails here rather than half way through.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         gcc-14 g++-14 cmake ninja-build meson ccache pkg-config python3 curl git \
         libsqlite3-dev libpsl-dev libbrotli-dev libnghttp2-dev \
         libglib2.0-dev libffi-dev zlib1g-dev libmount-dev gettext \
         libwayland-dev libwayland-bin libxkbcommon-dev libxkbregistry-dev \
-        patchelf sassc librsvg2-bin \
+        patchelf sassc librsvg2-bin librsvg2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN meson --version && pkg-config --modversion glib-2.0 libnghttp2 && gcc-14 --version | head -1
