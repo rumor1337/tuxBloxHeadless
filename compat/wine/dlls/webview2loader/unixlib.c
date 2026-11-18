@@ -55,6 +55,13 @@
 #include "unixlib.h"
 #include "webview2loader_ipc_protocol.h"
 
+/* The multiarch directory the bundle (and the host) keeps its libraries in. */
+#ifdef __aarch64__
+#define LIB_TRIPLET "aarch64-linux-gnu"
+#else
+#define LIB_TRIPLET "x86_64-linux-gnu"
+#endif
+
 WINE_DEFAULT_DEBUG_CHANNEL(webview2loader);
 
 /* The webview helper is a separate Linux process, so it cannot use Wine's
@@ -202,7 +209,7 @@ static BOOL host_has_usable_egl(void)
 static const char *bundle_gl_fallback_dir(const char *bundle_dir)
 {
     static char path[PATH_MAX];
-    snprintf(path, sizeof(path), "%s/lib/x86_64-linux-gnu/gl-fallback", bundle_dir);
+    snprintf(path, sizeof(path), "%s/lib/" LIB_TRIPLET "/gl-fallback", bundle_dir);
     return path;
 }
 
@@ -292,7 +299,7 @@ static const char *const host_gbm_backend_dirs[] =
 {
     "/usr/lib/gbm",
     "/usr/lib64/gbm",
-    "/usr/lib/x86_64-linux-gnu/gbm",
+    "/usr/lib/" LIB_TRIPLET "/gbm",
 };
 
 /* Where libglvnd's own EGL dispatcher looks for the vendor descriptions that
@@ -358,10 +365,10 @@ static void set_webkit_relocation_env(const char *dir)
     snprintf(path, sizeof(path), "%s/lib/webkitgtk-6.0/injected-bundle", dir);
     setenv("WEBKIT_INJECTED_BUNDLE_PATH", path, 1);
 
-    snprintf(path, sizeof(path), "%s/lib/x86_64-linux-gnu/gio/modules", dir);
+    snprintf(path, sizeof(path), "%s/lib/" LIB_TRIPLET "/gio/modules", dir);
     setenv("GIO_EXTRA_MODULES", path, 1);
 
-    snprintf(path, sizeof(path), "%s/lib/x86_64-linux-gnu/gbm", dir);
+    snprintf(path, sizeof(path), "%s/lib/" LIB_TRIPLET "/gbm", dir);
     setenv("GBM_BACKENDS_PATH", path, 1);
     /* Appended, never prepended: the bundle's own Mesa backend has to stay the
      * first answer, and these only come into play for a driver whose backend is
@@ -391,7 +398,7 @@ static void set_webkit_relocation_env(const char *dir)
     snprintf(path, sizeof(path), "%s/libexec/gstreamer-1.0/gst-plugin-scanner", dir);
     setenv("GST_PLUGIN_SCANNER", path, 1);
 
-    snprintf(path, sizeof(path), "%s/lib/x86_64-linux-gnu/gstreamer-1.0", dir);
+    snprintf(path, sizeof(path), "%s/lib/" LIB_TRIPLET "/gstreamer-1.0", dir);
     /* GStreamer 1.x reads GST_PLUGIN_SYSTEM_PATH_1_0 first and only falls
      * back to the unsuffixed GST_PLUGIN_SYSTEM_PATH when the _1_0-suffixed
      * one is unset. compat/tuxblox/src/launch/session.cpp sets GST_PLUGIN_SYSTEM_PATH_1_0
@@ -455,9 +462,9 @@ static void set_webkit_relocation_env(const char *dir)
      * filenames now, precisely so the file stops depending on the build
      * machine's own directory layout. Both vars are needed: the file says which
      * loaders exist, the dir says where they live. */
-    snprintf(path, sizeof(path), "%s/lib/x86_64-linux-gnu/gdk-pixbuf-2.0/2.10.0/loaders.cache", dir);
+    snprintf(path, sizeof(path), "%s/lib/" LIB_TRIPLET "/gdk-pixbuf-2.0/2.10.0/loaders.cache", dir);
     setenv("GDK_PIXBUF_MODULE_FILE", path, 1);
-    snprintf(path, sizeof(path), "%s/lib/x86_64-linux-gnu/gdk-pixbuf-2.0/2.10.0/loaders", dir);
+    snprintf(path, sizeof(path), "%s/lib/" LIB_TRIPLET "/gdk-pixbuf-2.0/2.10.0/loaders", dir);
     setenv("GDK_PIXBUF_MODULEDIR", path, 1);
 
     /* Which graphics driver this process renders through, and the one thing the
@@ -492,7 +499,7 @@ static void set_webkit_relocation_env(const char *dir)
      * for their whole session meant it, and this is not the place to argue. */
     if (!use_gpu)
     {
-        snprintf(path, sizeof(path), "%s/lib/x86_64-linux-gnu/dri", dir);
+        snprintf(path, sizeof(path), "%s/lib/" LIB_TRIPLET "/dri", dir);
         setenv("LIBGL_DRIVERS_PATH", path, 1);
         setenv("LIBGL_ALWAYS_SOFTWARE", "1", 1);
 

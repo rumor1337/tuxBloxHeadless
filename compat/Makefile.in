@@ -1082,13 +1082,13 @@ all-dist: $(DIST_FONTS)
 ## MESA_VERSION, GRAPHENE_VERSION and so on) that would land in this file's
 ## namespace and could silently collide with a package built here.
 WEBKITGTK_VER := $(shell sed -n 's/^WEBKITGTK_VERSION=//p' $(SRCDIR)/webkitgtk/bundle/versions.env)
-WEBKITGTK_x86_64_TARBALL := webkitgtk-$(WEBKITGTK_VER)-x86_64.tar.xz
+WEBKITGTK_TARBALL := webkitgtk-$(WEBKITGTK_VER)-$(TARGET_ARCH).tar.xz
 WEBKITGTK_DST := $(DST_LIBDIR)/tuxblox-webview
 
-$(OBJ)/.webkitgtk-x86_64-dist: $(SRC)/webkitgtk/prebuilt/$(WEBKITGTK_x86_64_TARBALL)
+$(OBJ)/.webkitgtk-dist: $(SRC)/webkitgtk/prebuilt/$(WEBKITGTK_TARBALL)
 	rm -rf $(WEBKITGTK_DST)
 	mkdir -p $(WEBKITGTK_DST)
-	tar --no-same-owner -xJf $(SRC)/webkitgtk/prebuilt/$(WEBKITGTK_x86_64_TARBALL) -C $(WEBKITGTK_DST) --strip-components=1
+	tar --no-same-owner -xJf $(SRC)/webkitgtk/prebuilt/$(WEBKITGTK_TARBALL) -C $(WEBKITGTK_DST) --strip-components=1
 	@# Build-time-only parts of the bundle: headers, .pc files, documentation and
 	@# GTK/WebKit translations. package.sh keeps them out of newer tarballs; this
 	@# prunes whichever vendored tarball is in webkitgtk/prebuilt/ today. 60 MB.
@@ -1122,7 +1122,7 @@ $(OBJ)/.webkitgtk-x86_64-dist: $(SRC)/webkitgtk/prebuilt/$(WEBKITGTK_x86_64_TARB
 	fi
 	touch $@
 
-all-dist: $(OBJ)/.webkitgtk-x86_64-dist
+all-dist: $(OBJ)/.webkitgtk-dist
 
 
 ##
