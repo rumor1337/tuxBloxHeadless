@@ -50,7 +50,7 @@ if grep -q '^VERSION_ID="11"' /etc/os-release; then
 fi
 # libcurl and libarchive are the launcher's own dynamic dependencies. The X11 client libraries are hard requirements of GTK's X11 backend and are deliberately not bundled.
 apt-get update -qq
-apt-get install -y -qq --no-install-recommends xvfb x11-utils x11-xserver-utils procps ca-certificates zstd libcurl4 libarchive13 libxcursor1 libxcb-render0 >/dev/null
+apt-get install -y -qq --no-install-recommends xvfb x11-utils x11-xserver-utils procps ca-certificates zstd libcurl4 libarchive13 libxcursor1 libxdamage1 libxcb-render0 >/dev/null
 # The update check must fail at once rather than reach the real server, which could hand off to an installer mid-test
 printf '127.0.0.1 setup.tuxblox.net\n' >>/etc/hosts
 
