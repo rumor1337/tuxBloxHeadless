@@ -44,6 +44,9 @@ BUILDER_FILE := Containerfile.arm64
 # The same SDK compat/Makefile.in names for TARGET_ARCH=arm64, so both halves share one glibc.
 ARM64_SDK := $(shell sed -n 's/^[[:space:]]*STEAMRT_IMAGE ?= \(.*arm64.*\)/\1/p' compat/Makefile.in)
 TUXBLOX_NO_PACKAGES := 1
+# GTK finds the SDK's fontconfig and librsvg new enough to link instead of building its own, so the
+# stack carries those copies, with the two libraries they bring that it does not build.
+UI_SDK_LIBS := libfontconfig.so.1 librsvg-2.so.2 libdav1d.so.7 libgcc_s.so.1
 # The launcher smoke test runs in debian:13 for arm64: its default, Debian 11, has too old a glibc.
 else
 $(error ARCH must be x86_64 or arm64, not $(ARCH))
@@ -684,6 +687,7 @@ stageRuntime() {
     rm -rf "$$StageDir"
     mkdir -p "$$StageDir/$$LibRel" "$$StageDir/share/glib-2.0" "$$StageDir/fonts"
     cp -a "$$Prefix/$$LibRel/." "$$StageDir/$$LibRel/"
+    for lib in $(UI_SDK_LIBS); do cp -L "/usr/$$LibRel/$$lib" "$$StageDir/$$LibRel/"; done
     rm -rf "$$StageDir/$$LibRel/pkgconfig" "$$StageDir/$$LibRel/glib-2.0/include" "$$StageDir/$$LibRel/gdk-pixbuf-2.0"
     rm -f "$$StageDir/$$LibRel"/libgirepository-2.0.so* "$$StageDir/$$LibRel"/libxkbregistry.so*
     cp -a "$$Prefix/fonts/." "$$StageDir/fonts/"
