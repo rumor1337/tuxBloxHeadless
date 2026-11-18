@@ -111,8 +111,9 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
           df -h /
 
-      - name: Install podman, and rsync and file for build-image.sh
-        run: sudo apt-get update && sudo apt-get install -y podman rsync file
+      # librsvg2-bin: make renders the icons with rsvg-convert on the runner itself.
+      - name: Install podman, rsvg-convert, and rsync and file for build-image.sh
+        run: sudo apt-get update && sudo apt-get install -y podman librsvg2-bin rsync file
 
       - name: Check out the shared libraries
         # compat/'s submodules (FEX included) are checked out by the build itself.
