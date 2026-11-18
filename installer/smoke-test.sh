@@ -41,7 +41,7 @@ if grep -q '^VERSION_ID="11"' /etc/os-release; then
 fi
 # libcurl and libarchive are the installer's own dynamic dependencies. The X11 client libraries (libxcursor1, libxcb-render0) are hard requirements of GTK's X11 backend and are deliberately not bundled, so this test assumes a desktop has them.
 apt-get update -qq
-apt-get install -y -qq --no-install-recommends xvfb x11-utils procps ca-certificates libcurl4 libarchive13 libxcursor1 libxcb-render0 >/dev/null
+apt-get install -y -qq --no-install-recommends xvfb x11-utils procps ca-certificates libcurl4 libarchive13 libxcursor1 libxdamage1 libxcb-render0 >/dev/null
 
 # Proof the machine has no toolkit of its own, so anything that resolves must have come from the payload.
 if ldconfig -p | grep -qE 'libgtk-4|libadwaita|libglib-2.0|libpango-1|libcairo\.so'; then
@@ -168,7 +168,7 @@ if grep -q '^VERSION_ID="11"' /etc/os-release; then
     printf 'Acquire::Check-Valid-Until "false";\n' >/etc/apt/apt.conf.d/99archive
 fi
 apt-get update -qq
-apt-get install -y -qq --no-install-recommends xvfb ca-certificates libcurl4 libarchive13 libxcursor1 libxcb-render0 >/dev/null
+apt-get install -y -qq --no-install-recommends xvfb ca-certificates libcurl4 libarchive13 libxcursor1 libxdamage1 libxcb-render0 >/dev/null
 
 useradd -m tester
 install -d -o tester /home/tester/.cache /opt/tuxblox-smoke

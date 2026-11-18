@@ -886,7 +886,7 @@ $(INSTALLER): $(INSTALLER_SRC) $(SHARED_SRC) $(LIBS) $(UI) $(TUXBLOX_ICONS) | $(
 	        $${UI_STACK_ARG:-} $${LIBADWAITA_ARG:-} $${APPIMAGE_ARG:-} && cmake --build build -j"$(JOBS)"'
 ifndef TUXBLOX_HEADLESS_ONLY
 	cd installer && ./append-payload.sh build/TuxBloxInstaller $(UI) build/TuxBloxInstaller-ui build/TuxBloxInstaller
-	@if [ -z "$$TUXBLOX_SKIP_SMOKE" ]; then cd installer && ./smoke-test.sh build/TuxBloxInstaller; \
+	@if [ -z "$$TUXBLOX_SKIP_SMOKE" ]; then cd installer && $(if $(ARM64_SDK),TUXBLOX_SMOKE_IMAGE=debian:13) ./smoke-test.sh build/TuxBloxInstaller; \
 	 else echo "!! TUXBLOX_SKIP_SMOKE set, the fresh-install smoke test was NOT run" >&2; fi
 endif
 	@mkdir -p $(ART)
