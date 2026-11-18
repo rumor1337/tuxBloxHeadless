@@ -1245,6 +1245,11 @@ endif
 export CARGO_HOME := $(if $(CARGO_HOME),$(CARGO_HOME),$(HOME)/.cargo)
 override DOCKER_OPTS := -v $(CARGO_HOME):$(CARGO_HOME)$(CONTAINER_MOUNT_OPTS) -e CARGO_HOME=$(CARGO_HOME) $(DOCKER_OPTS)
 
+# The submodules' .git files point into the outer repository's .git/modules, which the container
+# needs to see for FEX's version stamp (git describe).
+OUTER_GIT := $(abspath $(SRC)/../.git)
+override DOCKER_OPTS := $(if $(wildcard $(OUTER_GIT)),-v $(OUTER_GIT):$(OUTER_GIT):ro) $(DOCKER_OPTS)
+
 ifneq ($(ROOTLESS_CONTAINER),1)
 	override DOCKER_OPTS := -e HOME -e USER -e USERID=$(shell id -u) -u $(shell id -u):$(shell id -g) $(DOCKER_OPTS)
 endif
