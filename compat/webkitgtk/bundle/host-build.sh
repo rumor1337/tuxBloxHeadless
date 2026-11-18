@@ -18,7 +18,7 @@
 set -eo pipefail
 
 PREFIX="${PREFIX:-/opt/tuxblox-webview}"
-export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/lib/x86_64-linux-gnu/pkgconfig"
+export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/lib/$(uname -m)-linux-gnu/pkgconfig"
 
 echo ":: Generating webview2loader-host error page"
 WV2L_GENERATED=/tmp/webview2loader-host-generated
