@@ -378,8 +378,11 @@ buildLibffi() {
     ./configure --prefix="$$Prefix" --libdir="$$LibDir" --disable-static --disable-docs
     make -j"$$JOBS"
     make install
-    mv "$$Prefix"/lib/lib/libffi* "$$LibDir/"
-    rmdir "$$Prefix/lib/lib"
+    # x86_64's multilib layout lands it one lib/ too deep; aarch64 has none and installs it in place.
+    if [ -d "$$Prefix/lib/lib" ]; then
+        mv "$$Prefix"/lib/lib/libffi* "$$LibDir/"
+        rmdir "$$Prefix/lib/lib"
+    fi
     sed -i 's|^toolexeclibdir=.*|toolexeclibdir=$${libdir}|' "$$LibDir/pkgconfig/libffi.pc"
     cd /build
 }
