@@ -224,7 +224,7 @@ if(TUXBLOX_UI_STACK_DEV)
         installer_core ${ADWAITA_LINK_LIBRARIES} ${CMAKE_DL_LIBS} Threads::Threads)
     set_target_properties(TuxBloxInstaller-ui PROPERTIES
         BUILD_WITH_INSTALL_RPATH TRUE
-        INSTALL_RPATH "$ORIGIN/lib/x86_64-linux-gnu:$ORIGIN/lib")
+        INSTALL_RPATH "$ORIGIN/lib/${CMAKE_LIBRARY_ARCHITECTURE}:$ORIGIN/lib")
     add_dependencies(TuxBloxInstaller-ui generate_logo_header generate_font_header generate_thirdparty_license_headers)
     if(TUXBLOX_LIBADWAITA_COMMIT)
         target_compile_definitions(TuxBloxInstaller-ui PRIVATE TUXBLOX_LIBADWAITA_COMMIT="${TUXBLOX_LIBADWAITA_COMMIT}")

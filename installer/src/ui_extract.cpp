@@ -86,7 +86,7 @@ bool copyPayload(const std::string& selfExe, const UiPayloadTrailer& trailer, co
 
 UiStackResult ensureUiStack(const std::string& selfExe, const std::string& version) {
     // An AppImage mounts the interface stack already, so there is nothing to unpack and no cache to keep warm.
-    // usr/ is the stack root rather than usr/bin, because the interface binary's rpath is $ORIGIN/lib/x86_64-linux-gnu.
+    // usr/ is the stack root rather than usr/bin, because the interface binary's rpath is $ORIGIN/lib/<multiarch triplet>.
     if constexpr (kAppImageBuild) {
         const char* appDir = std::getenv("APPDIR");
         if (appDir && appDir[0] != '\0') return succeed(std::string(appDir) + "/usr");
