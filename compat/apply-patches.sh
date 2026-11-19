@@ -25,6 +25,8 @@ echo ":: Reloading the compatibility layer's submodules to their recorded commit
 # x86_64 build checks it out and never compiles a line of it.
 if [ "${TARGET_ARCH:-x86_64}" = arm64 ]; then
     git submodule update --init --force -- compat
+    # FEX vendors its own dependencies (rpmalloc, unordered_dense, ...) as nested submodules.
+    git submodule update --init --recursive -- compat/submodules/FEX
 else
     mapfile -t CompatSubmodules < <(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' |
         awk '{print $2}' | grep '^compat/' | grep -v '/FEX$')
