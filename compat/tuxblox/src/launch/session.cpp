@@ -329,7 +329,9 @@ void Session::initSession() {
                                 existingOverrides->second.find("dxgi=b") != std::string::npos;
     graphics.useDxvkDxgi = !graphics.useWineD3D && !dxgiOverridden;
 
-    graphics.useNvapi = !envIsOn("TUXBLOX_DISABLE_NVAPI");
+    // Proton builds no dxvk-nvapi for arm64, so only ask for it where the layer ships one.
+    graphics.useNvapi = !envIsOn("TUXBLOX_DISABLE_NVAPI") &&
+                        fs::exists(proton.archPeDir("wine/nvapi", false) / "nvapi64.dll");
     if (graphics.useNvapi) {
         env["DXVK_ENABLE_NVAPI"] = "1";
     }

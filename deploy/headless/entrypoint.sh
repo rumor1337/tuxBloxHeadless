@@ -19,7 +19,7 @@
 # container, and the stack's restart policy starts it again.
 set -eu
 
-rm -f /tmp/.X99-lock
+rm -f /tmp/.X99-lock /tmp/.X11-unix/X99
 Xvfb :99 -screen 0 "${SCREEN:-1920x1080x24}" -nolisten tcp &
 for _ in $(seq 50); do [ -e /tmp/.X11-unix/X99 ] && break; sleep 0.1; done
 

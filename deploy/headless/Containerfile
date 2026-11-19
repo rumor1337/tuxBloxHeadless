@@ -17,7 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # TuxBlox refuses to run as root.
-RUN useradd -m -u 1000 tuxblox
+# Xvfb runs unprivileged and cannot create the socket directory itself.
+RUN useradd -m -u 1000 tuxblox && install -d -m 1777 /tmp/.X11-unix
 COPY --chown=tuxblox:tuxblox tuxblox/ /opt/tuxblox/
 COPY entrypoint.sh /usr/local/bin/tuxblox-headless
 USER tuxblox
