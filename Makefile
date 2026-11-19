@@ -32,6 +32,7 @@ WINE_ARCH := x86_64
 GLIBC_FLOOR := 2.31
 BUILDER := tuxblox-builder
 BUILDER_FILE := Containerfile
+DEFAULT_PFX := default_pfx
 else ifeq ($(ARCH),arm64)
 TRIPLET := aarch64-linux-gnu
 LDSO := ld-linux-aarch64\.so\.1
@@ -41,6 +42,8 @@ WINE_ARCH := aarch64
 GLIBC_FLOOR := 2.41
 BUILDER := tuxblox-builder-arm64
 BUILDER_FILE := Containerfile.arm64
+# The prefix skeleton the launcher copies on aarch64 (compat/tuxblox/src/launch/proton.cpp).
+DEFAULT_PFX := default_pfx_arm64
 # The same SDK compat/Makefile.in names for TARGET_ARCH=arm64, so both halves share one glibc.
 ARM64_SDK := $(shell sed -n 's/^[[:space:]]*STEAMRT_IMAGE ?= \(.*arm64.*\)/\1/p' compat/Makefile.in)
 TUXBLOX_NO_PACKAGES := 1
@@ -1031,7 +1034,7 @@ $(COMPAT): $(COMPAT_SRC) $(PATCHES) $(LIBS) $(LAUNCHER) $(WEBVIEW) | $(PODMAN)
 	cp -a LICENSE $(NATIVE)/compat/LICENSE
 	rm -rf $(NATIVE)/compat/third_party_licenses
 	cp -a third_party_licenses $(NATIVE)/compat/third_party_licenses
-	@Skeleton=$(NATIVE)/compat/files/share/default_pfx; \
+	@Skeleton=$(NATIVE)/compat/files/share/$(DEFAULT_PFX); \
 	    Stamp=$$(printf '%x' $$(( ($(SOURCE_DATE_EPOCH) + 11644473600) * 10000000 ))); \
 	    sed -i -e "s/^#time=.*/#time=$$Stamp/" \
 	        -e "s/^\(\[.*\]\) [0-9][0-9]*$$/\1 $(SOURCE_DATE_EPOCH)/" "$$Skeleton"/*.reg; \
