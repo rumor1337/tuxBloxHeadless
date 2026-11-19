@@ -399,7 +399,7 @@ struct hypervisor_shared_data
  */
 BOOL WINAPI DECLSPEC_HOTPATCH RtlQueryPerformanceCounter( LARGE_INTEGER *counter )
 {
-#ifdef __x86_64__
+#if defined(__x86_64__) && !defined(__arm64ec__)
     /* The flag lives in the shared page and is set once a session; the page it
      * points at is mapped per process, and a process that failed to map it
      * would fault here on every call -- including from inside an exception
