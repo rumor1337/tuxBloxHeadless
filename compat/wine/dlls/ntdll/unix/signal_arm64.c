@@ -213,6 +213,23 @@ struct syscall_frame
 
 C_ASSERT( sizeof( struct syscall_frame ) == 0x330 );
 
+/***********************************************************************
+ *           get_syscall_caller_pc
+ *
+ * aarch64 counterpart of the x86_64 accessor -- see signal_x86_64.c.
+ */
+ULONG64 get_syscall_caller_pc(void)
+{
+    struct syscall_frame *frame = get_syscall_frame();
+    return frame ? frame->pc : 0;
+}
+
+ULONG64 get_syscall_caller_sp(void)
+{
+    struct syscall_frame *frame = get_syscall_frame();
+    return frame ? frame->sp : 0;
+}
+
 static BOOL is_arm64ec_suspend_doorbell_valid(void)
 {
     return is_arm64ec() && NtCurrentTeb()->ChpeV2CpuAreaInfo && NtCurrentTeb()->ChpeV2CpuAreaInfo->SuspendDoorbell;
