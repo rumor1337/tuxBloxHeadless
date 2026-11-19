@@ -38,8 +38,8 @@
 
 /* The only image whose signature is insisted on is the Roblox client, which is a
  * 64-bit PE, so the 32-bit loader never meets one and is built without any of
- * this. gnutls is only built for x86_64 for the same reason. */
-#ifdef __x86_64__
+ * this. gnutls is only built for the 64-bit hosts for the same reason. */
+#if defined(__x86_64__) || defined(__aarch64__)
 
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -913,7 +913,7 @@ done:
     return status;
 }
 
-#else /* __x86_64__ */
+#else /* __x86_64__ || __aarch64__ */
 
 const char *tuxblox_integrity_status_name( enum tuxblox_integrity_status status )
 {
@@ -937,4 +937,4 @@ enum tuxblox_integrity_status tuxblox_verify_authenticode( const char *path, con
     return TUXBLOX_INTEGRITY_UNAVAILABLE;
 }
 
-#endif /* __x86_64__ */
+#endif /* __x86_64__ || __aarch64__ */

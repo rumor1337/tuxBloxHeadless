@@ -29,4 +29,7 @@ if [ "${VNC:-0}" = 1 ]; then
     x11vnc -display :99 -forever -shared -nopw -quiet -rfbport 5900 &
 fi
 
+# There is no GL driver here, so GTK would crash setting up its default renderer. Studio renders through Vulkan, not GTK.
+export GSK_RENDERER="${GSK_RENDERER:-cairo}"
+
 exec /opt/tuxblox/TuxBloxLauncher --launch-studio
